@@ -72,6 +72,8 @@ describe("certificate browser renderer", () => {
     const pdfText = new TextDecoder("latin1").decode(pdf);
 
     expect(createObjectUrlSpy).not.toHaveBeenCalled();
+    expect(context.createRadialGradient).not.toHaveBeenCalled();
+    expect(context.stroke).toHaveBeenCalledTimes(3);
     expect(context.fillText).toHaveBeenCalledWith("Walter", expect.any(Number), expect.any(Number));
     expect(canvas.toDataURL).toHaveBeenCalledWith("image/jpeg", 0.98);
     expect(pdfText).toContain("/Subtype /Image");

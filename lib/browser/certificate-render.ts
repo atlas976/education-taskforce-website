@@ -140,28 +140,22 @@ function drawCertificateBackground(context: CanvasRenderingContext2D, width: num
   context.clip();
 
   const base = context.createLinearGradient(0, 0, width, height);
-  base.addColorStop(0, "rgb(248, 244, 255)");
-  base.addColorStop(0.72, "rgb(255, 255, 255)");
+  base.addColorStop(0, "rgb(252, 250, 255)");
+  base.addColorStop(0.5, "rgb(255, 255, 255)");
+  base.addColorStop(1, "rgb(250, 253, 252)");
   context.fillStyle = base;
-  context.fillRect(0, 0, width, height);
-
-  const mint = context.createRadialGradient(width * 0.12, height * 0.12, 0, width * 0.12, height * 0.12, width * 0.28);
-  mint.addColorStop(0, "rgba(30, 168, 150, 0.16)");
-  mint.addColorStop(1, "rgba(30, 168, 150, 0)");
-  context.fillStyle = mint;
-  context.fillRect(0, 0, width, height);
-
-  const purple = context.createRadialGradient(width * 0.9, height * 0.22, 0, width * 0.9, height * 0.22, width * 0.3);
-  purple.addColorStop(0, "rgba(154, 100, 217, 0.20)");
-  purple.addColorStop(1, "rgba(154, 100, 217, 0)");
-  context.fillStyle = purple;
   context.fillRect(0, 0, width, height);
 
   context.restore();
 
-  roundedRectPath(context, 0.5, 0.5, width - 1, height - 1, radius);
-  context.strokeStyle = "rgba(82, 53, 115, 0.14)";
-  context.lineWidth = 1;
+  roundedRectPath(context, 10, 10, width - 20, height - 20, radius);
+  context.strokeStyle = "rgba(26, 0, 70, 0.72)";
+  context.lineWidth = 3;
+  context.stroke();
+
+  roundedRectPath(context, 22, 22, width - 44, height - 44, radius - 2);
+  context.strokeStyle = "rgba(154, 100, 217, 0.38)";
+  context.lineWidth = 1.5;
   context.stroke();
 }
 
