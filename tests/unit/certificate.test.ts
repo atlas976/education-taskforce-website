@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createCertificateContent,
+  createCertificateImagePdf,
   createCertificatePdf,
   createEnglishCertificateText,
 } from "@/lib/domain/certificate";
@@ -55,5 +56,26 @@ describe("certificate generation", () => {
     expect(text).not.toContain("Jedes Experiment");
     expect(text).toContain("\\344");
     expect(text).toContain("\\374");
+  });
+
+  it("builds a PDF page from a certificate screenshot image", () => {
+    const fakeJpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const pdf = createCertificateImagePdf({
+      imageBytes: fakeJpeg,
+      imageHeight: 900,
+      imageWidth: 1400,
+      pageHeight: 540,
+      pageWidth: 840,
+    });
+    const text = new TextDecoder("latin1").decode(pdf);
+
+    expect(text.startsWith("%PDF-1.4")).toBe(true);
+    expect(text).toContain("/MediaBox [0 0 840.00 540.00]");
+    expect(text).toContain("/Subtype /Image");
+    expect(text).toContain("/Filter /DCTDecode");
+    expect(text).toContain("/Width 1400");
+    expect(text).toContain("/Height 900");
+    expect(text).toContain("/Im1 Do");
+    expect(text.trimEnd().endsWith("%%EOF")).toBe(true);
   });
 });

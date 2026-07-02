@@ -20,6 +20,14 @@ export type CertificateContent = {
   title: string;
 };
 
+export type CertificateImagePdfInput = {
+  imageBytes: Uint8Array;
+  imageHeight: number;
+  imageWidth: number;
+  pageHeight: number;
+  pageWidth: number;
+};
+
 export function createEnglishCertificateText(details: CertificateDetails) {
   const courseName = details.courseName ?? "AI Edutainment";
   const organizerName = details.organizerName ?? "TUM.ai";
@@ -256,6 +264,102 @@ export function createCertificatePdf(details: CertificateDetails): Uint8Array {
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
 
   return new TextEncoder().encode(pdf);
+}
+
+function formatPdfNumber(value: number) {
+  return value.toFixed(2);
+}
+
+function assertPositiveNumber(value: number, name: string) {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number.`);
+  }
+}
+
+function concatByteChunks(chunks: Uint8Array[], totalLength: number) {
+  const output = new Uint8Array(totalLength);
+  let offset = 0;
+
+  chunks.forEach((chunk) => {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  });
+
+  return output;
+}
+
+export function createCertificateImagePdf({
+  imageBytes,
+  imageHeight,
+  imageWidth,
+  pageHeight,
+  pageWidth,
+}: CertificateImagePdfInput): Uint8Array {
+  assertPositiveNumber(imageBytes.byteLength, "imageBytes.byteLength");
+  assertPositiveNumber(imageHeight, "imageHeight");
+  assertPositiveNumber(imageWidth, "imageWidth");
+  assertPositiveNumber(pageHeight, "pageHeight");
+  assertPositiveNumber(pageWidth, "pageWidth");
+
+  const encoder = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  const offsets = [0];
+  let length = 0;
+
+  function addString(value: string) {
+    const bytes = encoder.encode(value);
+    chunks.push(bytes);
+    length += bytes.byteLength;
+  }
+
+  function addBytes(bytes: Uint8Array) {
+    chunks.push(bytes);
+    length += bytes.byteLength;
+  }
+
+  function beginObject(objectNumber: number) {
+    offsets[objectNumber] = length;
+    addString(`${objectNumber} 0 obj\n`);
+  }
+
+  const contentStream = `q\n${formatPdfNumber(pageWidth)} 0 0 ${formatPdfNumber(pageHeight)} 0 0 cm\n/Im1 Do\nQ\n`;
+
+  addString("%PDF-1.4\n");
+
+  beginObject(1);
+  addString("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+  beginObject(2);
+  addString("<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+
+  beginObject(3);
+  addString(
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${formatPdfNumber(pageWidth)} ${formatPdfNumber(
+      pageHeight,
+    )}] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`,
+  );
+
+  beginObject(4);
+  addString(
+    `<< /Type /XObject /Subtype /Image /Width ${Math.round(imageWidth)} /Height ${Math.round(
+      imageHeight,
+    )} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.byteLength} >>\nstream\n`,
+  );
+  addBytes(imageBytes);
+  addString("\nendstream\nendobj\n");
+
+  beginObject(5);
+  addString(`<< /Length ${encoder.encode(contentStream).byteLength} >>\nstream\n${contentStream}endstream\nendobj\n`);
+
+  const xrefOffset = length;
+  addString("xref\n0 6\n");
+  addString("0000000000 65535 f \n");
+  for (let objectNumber = 1; objectNumber <= 5; objectNumber += 1) {
+    addString(`${String(offsets[objectNumber]).padStart(10, "0")} 00000 n \n`);
+  }
+  addString(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+
+  return concatByteChunks(chunks, length);
 }
 
 export function createCertificateFilename(participantName: string, language: CertificateLanguage) {
