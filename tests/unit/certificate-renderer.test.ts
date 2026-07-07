@@ -11,6 +11,7 @@ function createMockCanvas() {
     closePath: vi.fn(),
     createLinearGradient: vi.fn(() => gradient),
     createRadialGradient: vi.fn(() => gradient),
+    drawImage: vi.fn(),
     fill: vi.fn(),
     fillRect: vi.fn(),
     fillText: vi.fn(),
@@ -65,16 +66,34 @@ describe("certificate browser renderer", () => {
       return originalCreateElement(tagName);
     });
 
-    const pdf = await createCertificatePdfFromContent(createCertificateContent({ participantName: "Walter" }), {
-      height: 900,
-      width: 1400,
-    });
+    const pdf = await createCertificatePdfFromContent(
+      createCertificateContent({ participantName: "Walter" }),
+      {
+        height: 900,
+        width: 1400,
+      },
+      {
+        schlossElmauLogo: {} as CanvasImageSource,
+        tumAiLogo: {} as CanvasImageSource,
+      },
+    );
     const pdfText = new TextDecoder("latin1").decode(pdf);
 
     expect(createObjectUrlSpy).not.toHaveBeenCalled();
     expect(context.createRadialGradient).not.toHaveBeenCalled();
     expect(context.stroke).toHaveBeenCalledTimes(3);
+    expect(context.drawImage).toHaveBeenCalledTimes(2);
     expect(context.fillText).toHaveBeenCalledWith("Walter", expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith(
+      expect.stringContaining("TUM.ai brings AI education"),
+      expect.any(Number),
+      expect.any(Number),
+    );
+    expect(context.fillText).toHaveBeenCalledWith(
+      expect.stringContaining("Schloss Elmau provides the inspiring setting"),
+      expect.any(Number),
+      expect.any(Number),
+    );
     expect(canvas.toDataURL).toHaveBeenCalledWith("image/jpeg", 0.98);
     expect(pdfText).toContain("/Subtype /Image");
     expect(pdfText).toContain("/Filter /DCTDecode");

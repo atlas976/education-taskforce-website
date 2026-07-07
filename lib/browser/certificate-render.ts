@@ -4,10 +4,17 @@ import {
 } from "@/lib/domain/certificate";
 
 const CERTIFICATE_PDF_WIDTH = 842;
+const TUM_AI_LOGO_PATH = "/brand-assets/TUM.ai logo dark purple color.svg";
+const SCHLOSS_ELMAU_LOGO_PATH = "/brand-assets/Schloss-Elmau-Logo-Black.png";
 
 type CertificateRenderSize = {
   height: number;
   width: number;
+};
+
+type CertificateRenderAssets = {
+  schlossElmauLogo?: CanvasImageSource;
+  tumAiLogo?: CanvasImageSource;
 };
 
 type WrappedLine = {
@@ -33,6 +40,27 @@ function dataUrlToBytes(dataUrl: string) {
 
 function setFont(context: CanvasRenderingContext2D, size: number, weight = 700) {
   context.font = `${weight} ${size}px Manrope, Arial, sans-serif`;
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Could not load certificate asset: ${src}`));
+    image.src = src;
+  });
+}
+
+async function loadCertificateAssets(): Promise<CertificateRenderAssets> {
+  const [tumAiLogo, schlossElmauLogo] = await Promise.allSettled([
+    loadImage(TUM_AI_LOGO_PATH),
+    loadImage(SCHLOSS_ELMAU_LOGO_PATH),
+  ]);
+
+  return {
+    schlossElmauLogo: schlossElmauLogo.status === "fulfilled" ? schlossElmauLogo.value : undefined,
+    tumAiLogo: tumAiLogo.status === "fulfilled" ? tumAiLogo.value : undefined,
+  };
 }
 
 function roundedRectPath(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -132,6 +160,43 @@ function drawLeftLines(
   });
 }
 
+function getPartnerCopy(content: CertificateContent) {
+  if (content.subtitle === "Abschlusszertifikat") {
+    return {
+      schlossElmau:
+        "Schloss Elmau schafft den inspirierenden Ort, an dem konzentriertes Lernen offen, ruhig und besonders werden kann.",
+      tumAi: "TUM.ai bringt KI-Bildung, Mentoring und kreative Technologiepraxis in den Kurs.",
+    };
+  }
+
+  return {
+    schlossElmau:
+      "Schloss Elmau provides the inspiring setting where focused learning can feel open, calm, and special.",
+    tumAi: "TUM.ai brings AI education, mentoring, and creative technology practice to the course.",
+  };
+}
+
+function drawLogoOrFallback(
+  context: CanvasRenderingContext2D,
+  logo: CanvasImageSource | undefined,
+  fallbackText: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  if (logo) {
+    context.drawImage(logo, x, y, width, height);
+    return;
+  }
+
+  setFont(context, 18, 900);
+  context.fillStyle = "rgb(26, 0, 70)";
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  context.fillText(fallbackText, x, y + height / 2);
+}
+
 function drawCertificateBackground(context: CanvasRenderingContext2D, width: number, height: number) {
   const radius = 12;
 
@@ -171,7 +236,43 @@ function fitFontSize(context: CanvasRenderingContext2D, text: string, initialSiz
   return size;
 }
 
-function drawCertificate(context: CanvasRenderingContext2D, content: CertificateContent, width: number, height: number) {
+function drawPartnerBlock(
+  context: CanvasRenderingContext2D,
+  content: CertificateContent,
+  assets: CertificateRenderAssets,
+  padding: number,
+  y: number,
+  contentWidth: number,
+) {
+  const partnerCopy = getPartnerCopy(content);
+  const columnGap = 34;
+  const columnWidth = (contentWidth - columnGap) / 2;
+  const logoHeight = 34;
+  const textSize = 13;
+  const textLineHeight = textSize * 1.45;
+  const leftX = padding;
+  const rightX = padding + columnWidth + columnGap;
+
+  drawLogoOrFallback(context, assets.tumAiLogo, "TUM.ai", leftX, y, 112, logoHeight);
+  drawLogoOrFallback(context, assets.schlossElmauLogo, "Schloss Elmau", rightX, y, 158, logoHeight);
+
+  setFont(context, textSize, 650);
+  context.fillStyle = "rgb(75, 72, 86)";
+  const tumAiLines = wrapCanvasText(context, partnerCopy.tumAi, columnWidth);
+  const schlossElmauLines = wrapCanvasText(context, partnerCopy.schlossElmau, columnWidth);
+  drawLeftLines(context, tumAiLines, leftX, y + logoHeight + 16, textLineHeight);
+  drawLeftLines(context, schlossElmauLines, rightX, y + logoHeight + 16, textLineHeight);
+
+  return logoHeight + 16 + Math.max(tumAiLines.length, schlossElmauLines.length) * textLineHeight;
+}
+
+function drawCertificate(
+  context: CanvasRenderingContext2D,
+  content: CertificateContent,
+  width: number,
+  height: number,
+  assets: CertificateRenderAssets,
+) {
   const centerX = width / 2;
   const padding = clamp(width * 0.06, 34, 76);
   const contentWidth = width - padding * 2;
@@ -181,6 +282,7 @@ function drawCertificate(context: CanvasRenderingContext2D, content: Certificate
   const titleSize = clamp(width * 0.07, 48, 106);
   const statementSize = clamp(width * 0.02, 19, 25);
   const descriptionSize = clamp(width * 0.015, 16, 19);
+  const partnerBlockHeight = 92;
   const footerSize = 15;
   const footerStrongSize = 16;
 
@@ -207,7 +309,9 @@ function drawCertificate(context: CanvasRenderingContext2D, content: Certificate
     statementLines.length * statementLineHeight +
     gap +
     descriptionLines.length * descriptionLineHeight +
-    24 +
+    20 +
+    partnerBlockHeight +
+    22 +
     footerHeight;
   let y = Math.max(padding, (height - blockHeight) / 2);
 
@@ -242,7 +346,9 @@ function drawCertificate(context: CanvasRenderingContext2D, content: Certificate
 
   setFont(context, descriptionSize, 500);
   drawCenteredLines(context, descriptionLines, centerX, y + descriptionSize, descriptionLineHeight);
-  y += descriptionLines.length * descriptionLineHeight + 24;
+  y += descriptionLines.length * descriptionLineHeight + 20;
+
+  y += drawPartnerBlock(context, content, assets, padding, y, contentWidth) + 22;
 
   context.strokeStyle = "rgba(82, 53, 115, 0.18)";
   context.lineWidth = 1;
@@ -266,7 +372,11 @@ function drawCertificate(context: CanvasRenderingContext2D, content: Certificate
   drawLeftLines(context, rightFooterLines, footerRightX, y + footerStrongSize + 4 + footerSize, footerLineHeight);
 }
 
-export async function createCertificatePdfFromContent(content: CertificateContent, { height, width }: CertificateRenderSize) {
+export async function createCertificatePdfFromContent(
+  content: CertificateContent,
+  { height, width }: CertificateRenderSize,
+  assets?: CertificateRenderAssets,
+) {
   await document.fonts?.ready;
 
   if (width <= 0 || height <= 0) {
@@ -284,7 +394,7 @@ export async function createCertificatePdfFromContent(content: CertificateConten
   }
 
   context.scale(scale, scale);
-  drawCertificate(context, content, width, height);
+  drawCertificate(context, content, width, height, assets ?? (await loadCertificateAssets()));
 
   const imageBytes = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.98));
   const pageHeight = CERTIFICATE_PDF_WIDTH * (height / width);
@@ -302,7 +412,7 @@ export function createCertificatePdfFromElement(element: HTMLElement, content: C
   const rect = element.getBoundingClientRect();
 
   return createCertificatePdfFromContent(content, {
-    height: Math.ceil(rect.height),
+    height: Math.max(760, Math.ceil(rect.height)),
     width: Math.ceil(rect.width),
   });
 }
